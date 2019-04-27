@@ -1,3 +1,3 @@
 # helpers
 
-Various wrappers and helper functions, mostly for third party libraries and clients. To use, copy the desired helper .h and .c into the project directory.
+Various wrappers and helper functions, mostly acting as glue between third party libraries / clients and libb. To use, copy the desired helper .h and .c into the project directory.
