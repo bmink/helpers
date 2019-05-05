@@ -124,10 +124,10 @@ hiredis_set(const char *key, bstr_t *val)
 		goto end_label;
 
 	} else
-	if(r->type == REDIS_REPLY_STRING) {
+	if(r->type == REDIS_REPLY_STATUS) {
 		if(!xstrempty(r->str)) {
-			if(!xstrbeginswith(r->str, "+OK")) {
-				blogf("Redis error on set: %s", r->str);
+			if(!xstrbeginswith(r->str, "OK")) {
+				blogf("Redis error on SET: %s", r->str);
 				err = ENOEXEC;
 				goto end_label;
 			}
@@ -137,7 +137,7 @@ hiredis_set(const char *key, bstr_t *val)
 		}
 
 	} else {
-		blogf("Redis didn't respond with string");
+		blogf("Redis didn't respond with STATUS");
 		err = ENOEXEC;
 		goto end_label;
 	}
@@ -172,7 +172,7 @@ hiredis_sadd(const char *key, bstr_t *memb, int *nadded)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "SADD %s \"%s\"", key, bget(memb));
+	r = redisCommand(rctx, "SADD %s %s", key, bget(memb));
 
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
@@ -223,7 +223,7 @@ hiredis_sismember(const char *key, bstr_t *memb, int *ismemb)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "SISMEMBER %s \"%s\"", key, bget(memb));
+	r = redisCommand(rctx, "SISMEMBER %s %s", key, bget(memb));
 
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
