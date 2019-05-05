@@ -3,12 +3,11 @@
 
 
 int
-cjson_get_childstr(cJSON *json, const char *name, bstr_t **val)
+cjson_get_childstr(cJSON *json, const char *name, bstr_t *str)
 {
 	cJSON	*child;
-	bstr_t	*str;
 	
-	if(json == NULL || xstrempty(name) || val == NULL)
+	if(json == NULL || xstrempty(name) || str == NULL)
 		return EINVAL;
 
 	child = cJSON_GetObjectItemCaseSensitive(json, name);
@@ -21,13 +20,7 @@ cjson_get_childstr(cJSON *json, const char *name, bstr_t **val)
 	if(child->valuestring == NULL)
 		return ENOEXEC;
 
-	str = binit();
-	if(str == NULL)
-		return ENOMEM;
-
 	bstrcat(str, child->valuestring);
-
-	*val = str;
 
 	return 0;
 }

@@ -85,15 +85,173 @@ hiredis_sendcmd_intresp(bstr_t *cmd, int *resp)
 
 
 int
-hiredis_sendcmd_strresp(bstr_t *cmd, bstr_t **resp)
+hiredis_set(const char *key, bstr_t *val)
 {
+	redisReply	*r;
+	int		err;
+	bstr_t		*cmd;
+
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(bstrempty(cmd) || resp == NULL)
+	if(xstrempty(key) || bstrempty(val))
 		return EINVAL;
 
+	r = NULL;
+	err = 0;
 
-	return 0;
+	cmd = binit();
+	if(cmd == NULL) {
+		err = ENOMEM;
+		blogf("Couldn't initialize cmd");
+		goto end_label;
+	}
+
+	bprintf(cmd, "SET %s %%b", key);
+
+	r = redisCommand(rctx, bget(cmd), bget(val), bstrlen(val));
+
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_STRING) {
+		if(!xstrempty(r->str)) {
+			if(!xstrbeginswith(r->str, "+OK")) {
+				blogf("Redis error on set: %s", r->str);
+				err = ENOEXEC;
+				goto end_label;
+			}
+		} else {
+			blogf("Error while sending SET to redis, and no"
+			    " error string returned by redis!");
+		}
+
+	} else {
+		blogf("Redis didn't respond with string");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(cmd != NULL) {
+		buninit(&cmd);
+	}
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
 }
 
+
+int
+hiredis_sadd(const char *key, bstr_t *memb, int *nadded)
+{
+	int		err;
+	redisReply	*r;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) || bstrempty(memb))
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = redisCommand(rctx, "SADD %s \"%s\"", key, bget(memb));
+
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_INTEGER) {
+		if(nadded != NULL) {
+			*nadded = r->integer;
+		}
+	} else {
+		blogf("Redis didn't respond with integer");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
+int
+hiredis_sismember(const char *key, bstr_t *memb, int *ismemb)
+{
+	int		err;
+	redisReply	*r;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) || bstrempty(memb) || ismemb == NULL)
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = redisCommand(rctx, "SISMEMBER %s \"%s\"", key, bget(memb));
+
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_INTEGER) {
+		*ismemb = r->integer;
+	} else {
+		blogf("Redis didn't respond with integer");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
