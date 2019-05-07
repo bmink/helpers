@@ -12,4 +12,6 @@ int hiredis_set(const char *, bstr_t *);
 int hiredis_sadd(const char *, bstr_t *, int *);
 int hiredis_sismember(const char *, bstr_t *, int *);
 
+int hiredis_zadd(const char *, int, bstr_t *, int *);
+
 #endif
