@@ -13,5 +13,6 @@ int hiredis_sadd(const char *, bstr_t *, int *);
 int hiredis_sismember(const char *, bstr_t *, int *);
 
 int hiredis_zadd(const char *, int, bstr_t *, int *);
+int hiredis_zcount(const char *, bstr_t *, bstr_t *, int *);
 
 #endif
