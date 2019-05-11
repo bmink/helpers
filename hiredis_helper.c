@@ -359,4 +359,81 @@ end_label:
 	return err;
 }
 
+#define ZRANGE_FMT		"ZRANGE %s %d %d"
+#define ZRANGE_WITHSCORES_FMT	"ZRANGE %s %d %d WITHSCORES"
+
+int
+hiredis_zrange(const char *key, int start, int stop, int withscores,
+	barr_t *resp)
+{
+	/* resp should be a barr of (bstr_t *). Caller responsible for freeing
+	 * the returned elements. */
+	int		err;
+	redisReply	*r;
+	redisReply	*elem;
+	bstr_t		*str;
+	int		i;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) ||  resp == NULL)
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = redisCommand(rctx, withscores==0?ZRANGE_FMT:ZRANGE_WITHSCORES_FMT,
+	    key, start, stop);
+
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_ARRAY && r->elements > 0 &&
+	    r->element != NULL) {
+		for(i = 0; i < r->elements; ++i) {
+			elem = r->element[i];
+			if(elem->type != REDIS_REPLY_STRING) {
+				blogf("Element is not string");
+				continue;
+			}
+			if(xstrempty(elem->str)) {
+				blogf("Element is invalid string");
+				continue;
+			}
+			str = binit();
+			if(str == NULL) {
+				blogf("Couldn't allocate str");
+				continue;
+			}
+			bstrcat(str, elem->str);
+			barr_add(resp, (void *) str);
+		}
+	} else {
+		blogf("Redis didn't respond with valie array");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
 
