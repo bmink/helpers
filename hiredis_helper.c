@@ -9,7 +9,7 @@
 static redisContext	*rctx = NULL;
 
 int
-hiredis_init()
+hiredis_init(void)
 {
 
 	rctx = redisConnect(REDIS_ADDR, REDIS_PORT);
@@ -28,7 +28,7 @@ hiredis_init()
 
 
 int
-hiredis_uninit()
+hiredis_uninit(void)
 {
 
 	if(rctx != NULL) {
@@ -436,4 +436,52 @@ end_label:
 }
 
 
+int
+hiredis_zrem(const char *key, bstr_t *memb, int *nremoved)
+{
+	int		err;
+	redisReply	*r;
 
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) || bstrempty(memb))
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = redisCommand(rctx, "ZREM %s %s", key, bget(memb));
+
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_INTEGER) {
+		if(nremoved != NULL) {
+			*nremoved = r->integer;
+		}
+	} else {
+		blogf("Redis didn't respond with integer");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
