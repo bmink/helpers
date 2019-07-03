@@ -399,8 +399,12 @@ hiredis_zrange(const char *key, int start, int stop, int withscores,
 		goto end_label;
 
 	} else
-	if(r->type == REDIS_REPLY_ARRAY && r->elements > 0 &&
-	    r->element != NULL) {
+	if(r->elements == 0) {
+		err = ENOENT;
+		goto end_label;
+	} else
+	 if(r->type == REDIS_REPLY_ARRAY && r->element != NULL) {
+
 		for(i = 0; i < r->elements; ++i) {
 			elem = r->element[i];
 			if(elem->type != REDIS_REPLY_STRING) {
@@ -420,7 +424,7 @@ hiredis_zrange(const char *key, int start, int stop, int withscores,
 			barr_add(resp, (void *) str);
 		}
 	} else {
-		blogf("Redis didn't respond with valie array");
+		blogf("Redis didn't respond with valid array");
 		err = ENOEXEC;
 		goto end_label;
 	}
