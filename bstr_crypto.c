@@ -1,6 +1,7 @@
 #include <openssl/md5.h>
 #include <errno.h>
 #include "bstr_crypto.h"
+#include "blog.h"
 
 #define BSTR_MD5_SIZE  20
 
@@ -21,8 +22,6 @@ bstr_md5_readable(bstr_t *buf, bstr_t *rethash)
 	(void) MD5((unsigned char *) bget(buf), bstrlen(buf),
 	    (unsigned char *) hash);
 
-	if(xstrempty(hash))
-		return ENOEXEC;
 	/* Convert to human-readable. */
 	for(i = 0; i < 16; ++i) {
 		bprintf(rethash, "%0x", (unsigned char)hash[i]);
