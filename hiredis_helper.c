@@ -3,16 +3,34 @@
 #include "blog.h"
 #include "errno.h"
 
-#define REDIS_ADDR      "127.0.0.1"
-#define REDIS_PORT      6379
+#define REDIS_DEF_ADDR	"127.0.0.1"
+#define REDIS_DEF_PORT	6379
 
 static redisContext	*rctx = NULL;
 
 int
 hiredis_init(void)
 {
+	char	*redis_addr;
+	int	redis_port;
+	char	*envstr;
+	int	intval;
 
-	rctx = redisConnect(REDIS_ADDR, REDIS_PORT);
+	redis_addr = REDIS_DEF_ADDR;
+	redis_port = REDIS_DEF_PORT;
+
+	envstr = getenv("REDIS_ADDR");
+	if(!xstrempty(envstr))
+		redis_addr = envstr;
+
+	envstr = getenv("REDIS_PORT");
+	if(!xstrempty(envstr)) {
+		intval = atoi(envstr);
+		if(intval > 0)
+			redis_port = intval;
+	}
+
+	rctx = redisConnect(redis_addr, redis_port);
 	if(rctx == NULL) {
 		blogf("Could not create redis context\n");
 		return ENOEXEC;
