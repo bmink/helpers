@@ -1,12 +1,14 @@
 #include "hiredis_helper.h"
 #include "hiredis.h"
 #include "blog.h"
-#include "errno.h"
+#include <errno.h>
+#include <stdarg.h>
 
 #define REDIS_DEF_ADDR	"127.0.0.1"
 #define REDIS_DEF_PORT	6379
 
 static redisContext	*rctx = NULL;
+static redisReply *_redisCommand(const char *, ...);
 
 int
 hiredis_init(void)
@@ -57,48 +59,50 @@ hiredis_uninit(void)
 	return 0;
 }
 
-int
-hiredis_sendcmd_intresp(bstr_t *cmd, int *resp)
+#define MAXTRY	2
+
+static redisReply *
+_redisCommand(const char *format, ...)
 {
-	redisReply	*r;
-	int		err;
+	va_list		arglist;
+	redisReply	*res;
+	int		trycnt;
+	int		ret;
 
 	if(rctx == NULL)
-		return ENOEXEC;
+		return NULL;
 
-	if(bstrempty(cmd) || resp == NULL)
-		return EINVAL;
+	if(xstrempty(format))
+		return NULL;
 
-	r = NULL;
-	err = 0;
 
-	r = redisCommand(rctx, bget(cmd));
+	trycnt = 0;
+	while(1) {
 
-	if(r->type == REDIS_REPLY_ERROR) {
-		if(!xstrempty(r->str)) {
-			blogf("Error while sending command to redis: %s",
-			    r->str);
-		} else {
-			blogf("Error while sending command to redis,"
-			    " and no error string returned by redis!");
+		++trycnt;
+		va_start(arglist, format);
+		res = redisvCommand(rctx, format, arglist);
+		va_end(arglist);
+
+		if(res != NULL)
+			break;
+
+		if(trycnt >= MAXTRY)
+			break;
+
+		/* Reset the context (ie. connection) and we'll try again */
+#if 0
+		blogf("Resetting hiredis context");
+#endif
+		hiredis_uninit();
+		ret = hiredis_init();
+		if(ret != 0) {
+			blogf("Couln't reset hiredis context");
+			break;
 		}
-
-		err = ENOEXEC;
-	} else
-	if(r->type == REDIS_REPLY_INTEGER) {
-		*resp = r->integer;
-	} else {
-		blogf("Redis didn't respond with integer");
-		err = ENOEXEC;
 	}
 
-
-	if(r != NULL) {
-		freeReplyObject(r);
-		r = NULL;
-	}
-
-	return err;
+	return res;
 }
 
 
@@ -127,8 +131,13 @@ hiredis_set(const char *key, bstr_t *val)
 
 	bprintf(cmd, "SET %s %%b", key);
 
-	r = redisCommand(rctx, bget(cmd), bget(val), bstrlen(val));
+	r = _redisCommand(bget(cmd), bget(val), bstrlen(val));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -190,8 +199,13 @@ hiredis_sadd(const char *key, bstr_t *memb, int *nadded)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "SADD %s %s", key, bget(memb));
+	r = _redisCommand("SADD %s %s", key, bget(memb));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -241,8 +255,13 @@ hiredis_sismember(const char *key, bstr_t *memb, int *ismemb)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "SISMEMBER %s %s", key, bget(memb));
+	r = _redisCommand("SISMEMBER %s %s", key, bget(memb));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -290,8 +309,13 @@ hiredis_zadd(const char *key, int score, bstr_t *memb, int *nadded)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "ZADD %s %d %s", key, score, bget(memb));
+	r = _redisCommand("ZADD %s %d %s", key, score, bget(memb));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -344,8 +368,13 @@ hiredis_zcount(const char *key, bstr_t *rmin, bstr_t *rmax, int *count)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "ZCOUNT %s %s %s", key, bget(rmin), bget(rmax));
+	r = _redisCommand("ZCOUNT %s %s %s", key, bget(rmin), bget(rmax));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -401,9 +430,14 @@ hiredis_zrange(const char *key, int start, int stop, int withscores,
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, withscores==0?ZRANGE_FMT:ZRANGE_WITHSCORES_FMT,
+	r = _redisCommand(withscores==0?ZRANGE_FMT:ZRANGE_WITHSCORES_FMT,
 	    key, start, stop);
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
@@ -473,8 +507,13 @@ hiredis_zrem(const char *key, bstr_t *memb, int *nremoved)
 	err = 0;
 	r = NULL;
 
-	r = redisCommand(rctx, "ZREM %s %s", key, bget(memb));
+	r = _redisCommand("ZREM %s %s", key, bget(memb));
 
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
 	if(r->type == REDIS_REPLY_ERROR) {
 		if(!xstrempty(r->str)) {
 			blogf("Error while sending command to redis: %s",
