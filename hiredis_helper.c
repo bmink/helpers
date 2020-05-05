@@ -549,7 +549,7 @@ end_label:
 
 
 int
-hiredis_blpop(const char *key, bstr_t **resp)
+hiredis_blpop(const char *key, int timeout, bstr_t **resp)
 {
 	int		err;
 	redisReply	*r;
@@ -566,7 +566,7 @@ hiredis_blpop(const char *key, bstr_t **resp)
 	r = NULL;
 	str = NULL;
 
-	r = _redisCommand("BLPOP %s 0", key);
+	r = _redisCommand("BLPOP %s %d", key, timeout);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
