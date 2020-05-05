@@ -586,17 +586,12 @@ hiredis_blpop(const char *key, int timeout, bstr_t **resp)
 		goto end_label;
 
 	} else
-	if(r->type != REDIS_REPLY_ARRAY) {
-		blogf("Redis didn't respond with array");
-		err = ENOEXEC;
-		goto end_label;
-	} else
-	if(timeout != 0 && r->elements == 0) {
+	if(timeout != 0 && r->type == REDIS_REPLY_NIL) {
 		err = ETIMEDOUT;
 		goto end_label;
 	} else
-	if(r->elements != 2) {
-		blogf("Redis didn't respond with two elements");
+	if(r->type != REDIS_REPLY_ARRAY || r->elements != 2) {
+		blogf("Redis didn't respond with two-element array");
 		err = ENOEXEC;
 		goto end_label;
 	} else {
