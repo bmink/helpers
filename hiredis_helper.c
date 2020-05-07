@@ -452,7 +452,6 @@ hiredis_zrange(const char *key, int start, int stop, int withscores,
 
 	} else
 	if(r->elements == 0) {
-		err = ENOENT;
 		goto end_label;
 	} else
 	 if(r->type == REDIS_REPLY_ARRAY && r->element != NULL) {
@@ -742,7 +741,7 @@ end_label:
 int
 hiredis_lrange(const char *key, int start, int stop, barr_t *resp)
 {
-	/* resp should be a barr of (bstr_t *). Caller responsible for freeing
+	/* resp should be a barr of (bstr_t). Caller responsible for freeing
 	 * the returned elements. */
 	int		err;
 	redisReply	*r;
@@ -780,7 +779,6 @@ hiredis_lrange(const char *key, int start, int stop, barr_t *resp)
 
 	} else
 	if(r->elements == 0) {
-		err = ENOENT;
 		goto end_label;
 	} else
 	 if(r->type == REDIS_REPLY_ARRAY && r->element != NULL) {
