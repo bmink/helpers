@@ -752,7 +752,7 @@ hiredis_lrange(const char *key, int start, int stop, barr_t *resp)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) ||  resp == NULL)
+	if(xstrempty(key) || resp == NULL)
 		return EINVAL;
 
 	err = 0;
@@ -803,6 +803,7 @@ hiredis_lrange(const char *key, int start, int stop, barr_t *resp)
 			free(str);
 			str = NULL;
 		}
+
 	} else {
 		blogf("Redis didn't respond with valid array");
 		err = ENOEXEC;
@@ -820,3 +821,54 @@ end_label:
 }
 
 
+int
+hiredis_lrem(const char *key, int count, const char *elem, int *ndel)
+{
+	int		err;
+	redisReply	*r;
+
+	if(xstrempty(key) || xstrempty(elem))
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = _redisCommand("LREM %s %d %s", key, count, elem);
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_INTEGER) {
+		if(ndel != NULL) {
+			*ndel = r->integer;
+		}
+	} else {
+		blogf("Redis didn't respond with integer");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+	
+}

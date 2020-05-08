@@ -22,5 +22,6 @@ int hiredis_blpop(const char *, int, bstr_t **);
 int hiredis_rpush(const char *, bstr_t *);
 int hiredis_lpush(const char *, bstr_t *);
 int hiredis_lrange(const char *, int, int, barr_t *);
+int hiredis_lrem(const char *, int, const char *, int *);
 
 #endif
