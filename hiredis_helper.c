@@ -635,7 +635,7 @@ end_label:
 
 
 int
-hiredis_lpush(const char *key, bstr_t *elem)
+hiredis_lpush(const char *key, const char *elem)
 {
 	int		err;
 	redisReply	*r;
@@ -643,13 +643,13 @@ hiredis_lpush(const char *key, bstr_t *elem)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) || bstrempty(elem))
+	if(xstrempty(key) || xstrempty(elem))
 		return EINVAL;
 
 	err = 0;
 	r = NULL;
 
-	r = _redisCommand("LPUSH %s %s", key, bget(elem));
+	r = _redisCommand("LPUSH %s %s", key, elem);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
@@ -687,7 +687,7 @@ end_label:
 
 
 int
-hiredis_rpush(const char *key, bstr_t *elem)
+hiredis_rpush(const char *key, const char *elem)
 {
 	int		err;
 	redisReply	*r;
@@ -695,13 +695,13 @@ hiredis_rpush(const char *key, bstr_t *elem)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) || bstrempty(elem))
+	if(xstrempty(key) || xstrempty(elem))
 		return EINVAL;
 
 	err = 0;
 	r = NULL;
 
-	r = _redisCommand("RPUSH %s %s", key, bget(elem));
+	r = _redisCommand("RPUSH %s %s", key, elem);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
