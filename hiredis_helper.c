@@ -452,6 +452,7 @@ hiredis_zrange(const char *key, int start, int stop, int withscores,
 
 	} else
 	if(r->elements == 0) {
+		err = ENOENT;
 		goto end_label;
 	} else
 	 if(r->type == REDIS_REPLY_ARRAY && r->element != NULL) {
