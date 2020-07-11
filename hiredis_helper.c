@@ -185,6 +185,70 @@ end_label:
 
 
 int
+hiredis_get(const char *key, bstr_t *val)
+{
+	redisReply	*r;
+	int		err;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) || val == NULL)
+		return EINVAL;
+
+	r = NULL;
+	err = 0;
+
+	r = _redisCommand("GET %s", key);
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_NIL) {
+		/* Key not found */
+		err = ENOENT;
+	} else
+	if(r->type == REDIS_REPLY_STRING) {
+		if(r->str != NULL) {
+			bclear(val);
+			bstrcat(val, r->str);
+		}
+
+	} else {
+		blogf("Redis didn't respond with STRING");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
+
+
+int
 hiredis_sadd(const char *key, bstr_t *memb, int *nadded)
 {
 	int		err;
