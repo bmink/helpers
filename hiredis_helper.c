@@ -107,7 +107,7 @@ _redisCommand(const char *format, ...)
 
 
 int
-hiredis_set(const char *key, const char *val)
+hiredis_set(const char *key, bstr_t *val)
 {
 	redisReply	*r;
 	int		err;
@@ -116,7 +116,7 @@ hiredis_set(const char *key, const char *val)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) || !val)
+	if(xstrempty(key) || bstrempty(val))
 		return EINVAL;
 
 	r = NULL;
@@ -131,7 +131,7 @@ hiredis_set(const char *key, const char *val)
 
 	bprintf(cmd, "SET %s %%b", key);
 
-	r = _redisCommand(bget(cmd), val, xstrlen(val));
+	r = _redisCommand(bget(cmd), bget(val), bstrlen(val));
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
@@ -182,6 +182,70 @@ end_label:
 
 	return err;
 }
+
+
+int
+hiredis_get(const char *key, bstr_t *val)
+{
+	redisReply	*r;
+	int		err;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key) || val == NULL)
+		return EINVAL;
+
+	r = NULL;
+	err = 0;
+
+	r = _redisCommand("GET %s", key);
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_NIL) {
+		/* Key not found */
+		err = ENOENT;
+	} else
+	if(r->type == REDIS_REPLY_STRING) {
+		if(r->str != NULL) {
+			bclear(val);
+			bstrcat(val, r->str);
+		}
+
+	} else {
+		blogf("Redis didn't respond with STRING");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
 
 
 int
@@ -636,7 +700,7 @@ end_label:
 
 
 int
-hiredis_lpush(const char *key, bstr_t *elem)
+hiredis_lpush(const char *key, const char *elem)
 {
 	int		err;
 	redisReply	*r;
@@ -644,13 +708,13 @@ hiredis_lpush(const char *key, bstr_t *elem)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) || bstrempty(elem))
+	if(xstrempty(key) || xstrempty(elem))
 		return EINVAL;
 
 	err = 0;
 	r = NULL;
 
-	r = _redisCommand("LPUSH %s %s", key, bget(elem));
+	r = _redisCommand("LPUSH %s %s", key, elem);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
@@ -688,7 +752,7 @@ end_label:
 
 
 int
-hiredis_rpush(const char *key, bstr_t *elem)
+hiredis_rpush(const char *key, const char *elem)
 {
 	int		err;
 	redisReply	*r;
@@ -696,13 +760,13 @@ hiredis_rpush(const char *key, bstr_t *elem)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(key) || bstrempty(elem))
+	if(xstrempty(key) || xstrempty(elem))
 		return EINVAL;
 
 	err = 0;
 	r = NULL;
 
-	r = _redisCommand("RPUSH %s %s", key, bget(elem));
+	r = _redisCommand("RPUSH %s %s", key, elem);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
@@ -876,7 +940,85 @@ end_label:
 
 
 int
-hiredis_keys(const char *patt, barr_t *resp)
+hiredis_rename(const char *oldkey, const char *newkey)
+{
+	redisReply	*r;
+	int		err;
+	bstr_t		*cmd;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(oldkey) || xstrempty(newkey))
+		return EINVAL;
+
+	r = NULL;
+	err = 0;
+
+	cmd = binit();
+	if(cmd == NULL) {
+		err = ENOMEM;
+		blogf("Couldn't initialize cmd");
+		goto end_label;
+	}
+
+	bprintf(cmd, "RENAME %s %s", oldkey, newkey);
+
+	r = _redisCommand(bget(cmd));
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_STATUS) {
+		if(!xstrempty(r->str)) {
+			if(!xstrbeginswith(r->str, "OK")) {
+				blogf("Redis error on SET: %s", r->str);
+				err = ENOEXEC;
+				goto end_label;
+			}
+		} else {
+			blogf("Error while sending SET to redis, and no"
+			    " error string returned by redis!");
+		}
+
+	} else {
+		blogf("Redis didn't respond with STATUS");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(cmd != NULL) {
+		buninit(&cmd);
+	}
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
+int
+hiredis_srandmember(const char *key, int cnt, barr_t *resp)
 {
 	/* resp should be a barr of (bstr_t). Caller responsible for freeing
 	 * the returned elements. */
@@ -889,13 +1031,13 @@ hiredis_keys(const char *patt, barr_t *resp)
 	if(rctx == NULL)
 		return ENOEXEC;
 
-	if(xstrempty(patt) || resp == NULL)
+	if(xstrempty(key) || resp == NULL)
 		return EINVAL;
 
 	err = 0;
 	r = NULL;
 
-	r = _redisCommand("KEYS %s", patt);
+	r = _redisCommand("SRANDMEMBER %s %d", key, cnt);
 
 	if(r == NULL) {
 		blogf("Error while sending command to redis: NULL reply");
@@ -943,6 +1085,62 @@ hiredis_keys(const char *patt, barr_t *resp)
 
 	} else {
 		blogf("Redis didn't respond with valid array");
+		err = ENOEXEC;
+		goto end_label;
+	}
+
+end_label:
+
+	if(r != NULL) {
+		freeReplyObject(r);
+		r = NULL;
+	}
+
+	return err;
+}
+
+
+int
+hiredis_del(const char *key, int *ndeleted)
+{
+	int		err;
+	redisReply	*r;
+
+	if(rctx == NULL)
+		return ENOEXEC;
+
+	if(xstrempty(key))
+		return EINVAL;
+
+	err = 0;
+	r = NULL;
+
+	r = _redisCommand("DEL %s", key);
+
+	if(r == NULL) {
+		blogf("Error while sending command to redis: NULL reply");
+		err = ENOEXEC;
+		goto end_label;
+	} else
+	if(r->type == REDIS_REPLY_ERROR) {
+		if(!xstrempty(r->str)) {
+			blogf("Error while sending command to redis: %s",
+			    r->str);
+		} else {
+			blogf("Error while sending command to redis,"
+			    " and no error string returned by redis!");
+		}
+
+		err = ENOEXEC;
+		goto end_label;
+
+	} else
+	if(r->type == REDIS_REPLY_INTEGER) {
+		if(ndeleted != NULL) {
+			*ndeleted = r->integer;
+		}
+	} else {
+		blogf("Redis didn't respond with integer");
 		err = ENOEXEC;
 		goto end_label;
 	}
